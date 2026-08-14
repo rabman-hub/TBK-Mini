@@ -1,0 +1,51 @@
+/*
+ * Right-half (central) input behaviour.
+ *
+ * The trackball hardware itself is defined in
+ * config/boards/shields/charybdis/charybdis_right.overlay - this file only
+ * configures what happens to the events it produces.
+ *
+ * The old driver properties `scroll-layers`, `snipe-layers` and
+ * `automouse-layer` no longer exist. Scroll mode, precision mode and auto-mouse
+ * are now built from input processors, configured per-layer here.
+ *
+ * Layer indices (must match the order in config/charybdis.keymap):
+ *   0 QWERTY   1 SYMBOL   2 Num   3 Nav
+ *   4 Fun      5 LOWER    6 MOUSE
+ */
+
+#include <input/processors.dtsi>
+
+#define LYR_NUM   2
+#define LYR_FUN   4
+#define LYR_MOUSE 6
+
+&trackball_listener {
+
+    /* Scroll mode: hold Num (left thumb, `&mo 2` on QWERTY) and the ball
+     * scrolls instead of moving the pointer. */
+    scroller {
+        layers = <LYR_NUM>;
+        input-processors = <&zip_xy_to_scroll_mapper>;
+    };
+
+    /* Precision mode: hold Fun (`&layer_tap 4 ESC`) to slow the pointer down.
+     * Replaces the old CONFIG_PMW3610_SNIPE_CPI. */
+    precision {
+        layers = <LYR_FUN>;
+        input-processors = <&zip_xy_scaler 1 3>;
+    };
+
+    /* Auto-mouse: moving the ball temporarily enables the MOUSE layer and drops
+     * it again after 500ms of no movement. */
+    input-processors = <&zip_temp_layer LYR_MOUSE 500>;
+};
+
+&zip_temp_layer {
+    /* Don't fire the mouse layer mid-typing. */
+    require-prior-idle-ms = <200>;
+
+    /* Thumb positions 38/39/40 are MB1/MB2/MCLK - clicking must not dismiss
+     * the layer that put those buttons there. */
+    excluded-positions = <38 39 40>;
+};

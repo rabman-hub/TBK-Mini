@@ -1,0 +1,91 @@
+/*
+ * Copyright (c) 2022 Duccio Breschi
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+#include "charybdis.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+&default_transform {
+    col-offset = <6>;
+};
+
+&kscan0 {
+    diode-direction = "col2row";
+    col-gpios
+        = <&pro_micro 9 (GPIO_ACTIVE_HIGH)> // COL0
+        , <&pro_micro 8 (GPIO_ACTIVE_HIGH)> // COL1
+        , <&pro_micro 7 (GPIO_ACTIVE_HIGH)> // COL2
+        , <&pro_micro 6 (GPIO_ACTIVE_HIGH)> // COL3
+        , <&pro_micro 5 (GPIO_ACTIVE_HIGH)> // COL4
+        , <&pro_micro 4 (GPIO_ACTIVE_HIGH)> // COL5
+    ;
+};
+
+&pinctrl {
+    spi0_default: spi0_default {
+        group1 {
+            psels = <NRF_PSEL(SPIM_SCK, 0, 8)>,
+                <NRF_PSEL(SPIM_MOSI, 0, 17)>,
+                <NRF_PSEL(SPIM_MISO, 0, 17)>;
+        };
+    };
+
+    spi0_sleep: spi0_sleep {
+        group1 {
+            psels = <NRF_PSEL(SPIM_SCK, 0, 8)>,
+                <NRF_PSEL(SPIM_MOSI, 0, 17)>,
+                <NRF_PSEL(SPIM_MISO, 0, 17)>;
+            low-power-enable;
+        };
+    };
+};
+
+&spi0 {
+    status = "okay";
+    compatible = "nordic,nrf-spim";
+    pinctrl-0 = <&spi0_default>;
+    pinctrl-1 = <&spi0_sleep>;
+    pinctrl-names = "default", "sleep";
+    cs-gpios = <&gpio0 20 GPIO_ACTIVE_LOW>;
+
+    trackball: trackball@0 {
+        status = "okay";
+
+        /* badjeff fork uses "pixart,pmw3610-alt" to avoid clashing with the
+         * upstream Zephyr pmw3610 driver. */
+        compatible = "pixart,pmw3610-alt";
+
+        reg = <0>;
+        spi-max-frequency = <2000000>;
+        irq-gpios = <&gpio0 6 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+
+        /* Was CONFIG_PMW3610_CPI=2400 with CPI_DIVIDOR=4, i.e. 600 effective. */
+        cpi = <600>;
+
+        /* ORIENTATION_270 + INVERT_X do not map 1:1 onto these flags.
+         * STARTING POINT ONLY - flash, move the ball, and adjust:
+         *   - ball moves along the wrong axis      -> toggle swap-xy
+         *   - horizontal movement is backwards     -> toggle invert-x
+         *   - vertical movement is backwards       -> toggle invert-y   */
+        swap-xy;
+        invert-x;
+        // invert-y;
+
+        evt-type = <INPUT_EV_REL>;
+        x-input-code = <INPUT_REL_X>;
+        y-input-code = <INPUT_REL_Y>;
+
+        /* Keep the sensor awake while ZMK is ACTIVE. Costs battery; uncomment
+         * only if the first movement after a pause feels laggy. */
+        // force-awake;
+    };
+};
+
+/ {
+    trackball_listener {
+        compatible = "zmk,input-listener";
+        device = <&trackball>;
+    };
+};
